@@ -52,9 +52,9 @@ func post(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	// Allowing POST to take multiple words seperated by underscores "_"
+	// Allowing POST to take multiple words seperated by hyphens "-"
 	var value string
-	valArr := strings.Split(parts[2], "_")
+	valArr := strings.Split(parts[2], "-")
 	if len(valArr) > 1 {
 		value = strings.Join(valArr, " ")
 	} else {
@@ -64,7 +64,7 @@ func post(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Starter data for testing
+	// Placeholder data for testing
 	dta[1] = "David"
 	dta[2] = "Ryan"
 	dta[3] = "Craig"
