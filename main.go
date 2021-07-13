@@ -18,18 +18,6 @@ func listData(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func dataMethods(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "POST":
-		post(w, r)
-		return
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte("method not allowed"))
-		return
-	}
-
-}
 func getData(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.String(), "/")
 
