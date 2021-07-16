@@ -8,12 +8,15 @@ import (
 )
 
 var dta = make(map[int]string, 100)
+var newDta = make(map[int]string, 100)
 
 func listData(w http.ResponseWriter, r *http.Request) {
 
 	for i := 1; i < len(dta)+1; i++ {
-		fmt.Fprintf(w, strconv.FormatInt(int64(i), 10)+": ")
-		fmt.Fprintf(w, dta[i]+"\n")
+		if dta[i] != "" {
+			fmt.Fprintf(w, strconv.FormatInt(int64(i), 10)+": ")
+			fmt.Fprintf(w, dta[i]+"\n")
+		}
 	}
 
 }
@@ -29,26 +32,49 @@ func getData(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, dta[key]+"\n")
+	if dta[key] == "" {
+		fmt.Fprintf(w, fmt.Sprint(key)+" empty")
+	} else {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, dta[key]+"\n")
+	}
 }
 
 func post(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.String(), "/")
 
 	if len(parts) != 3 {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	// Allowing POST to take multiple words seperated by hyphens "-"
+	// Allowing POST to take multiple words seperated by underscores "_"
 	var value string
-	valArr := strings.Split(parts[2], "-")
+	valArr := strings.Split(parts[2], "_")
 	if len(valArr) > 1 {
 		value = strings.Join(valArr, " ")
 	} else {
 		value = parts[2]
 	}
 	dta[len(dta)+1] = string(value)
+}
+
+// Delete specified ID value
+func delete(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.String(), "/")
+
+	if len(parts) != 3 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	key, err := strconv.Atoi(parts[2])
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, dta[key]+" deleted")
+	dta[key] = ""
+
 }
 
 func main() {
@@ -61,5 +87,6 @@ func main() {
 	http.HandleFunc("/list", listData)
 	http.HandleFunc("/get/", getData)
 	http.HandleFunc("/post/", post)
+	http.HandleFunc("/delete/", delete)
 	http.ListenAndServe(":8080", nil)
 }
