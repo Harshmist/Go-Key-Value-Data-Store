@@ -12,7 +12,6 @@ import (
 )
 
 var dta = make(map[int]string, 100)
-var newDta = make(map[int]string, 100)
 
 func listData(w http.ResponseWriter, r *http.Request) {
 
@@ -104,6 +103,26 @@ func handler(conn net.Conn) {
 				log.Fatal("Fatal error")
 			}
 			io.WriteString(conn, dta[keyInt]+"\n")
+		case "SET":
+			if len(fields) < 3 {
+				io.WriteString(conn, "Format should be <int Key> <string Value> \n")
+			}
+			var value string
+			keyInt, err := strconv.Atoi(fields[1])
+			if err != nil {
+				log.Fatal("Fatal error")
+			}
+			fieldArr := strings.Split(fields[2], "_")
+			if len(fieldArr) > 1 {
+				value = strings.Join(fieldArr, " ")
+			} else {
+				value = fields[2]
+			}
+			if dta[keyInt] != "" {
+				io.WriteString(conn, "Key is already in use. Try the LIST command to see keys in use \n")
+			}
+			dta[keyInt] = value
+
 		case "POST":
 			var value string
 			if len(fields) < 2 {
