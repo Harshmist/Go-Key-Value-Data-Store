@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -77,6 +81,82 @@ func delete(w http.ResponseWriter, r *http.Request) {
 
 }
 
+//Handling the commands via TCP
+func handler(conn net.Conn) {
+
+	defer conn.Close()
+
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) < 1 {
+			continue
+		}
+
+		switch fields[0] {
+		case "GET":
+			if len(fields) < 2 {
+				io.WriteString(conn, "No key input! \n")
+			}
+			keyInt, err := strconv.Atoi(fields[1])
+			if err != nil {
+				log.Fatal("Fatal error")
+			}
+			io.WriteString(conn, dta[keyInt]+"\n")
+		case "POST":
+			var value string
+			if len(fields) < 2 {
+				io.WriteString(conn, "No value added! \n")
+			}
+			fieldArr := strings.Split(fields[1], "_")
+			if len(fieldArr) > 1 {
+				value = strings.Join(fieldArr, " ")
+			} else {
+				value = fields[1]
+			}
+			dta[len(dta)+1] = string(value)
+			io.WriteString(conn, value+" added!\n")
+		case "LIST":
+			for i := 0; i < len(dta)+1; i++ {
+				if dta[i] != "" {
+					io.WriteString(conn, fmt.Sprint(i)+": "+dta[i]+"\n")
+				}
+			}
+
+		case "DELETE":
+			keyInt, err := strconv.Atoi(fields[1])
+			if err != nil {
+				log.Fatal("Fatal error")
+			}
+			dta[keyInt] = ""
+		default:
+			io.WriteString(conn, "Invalid Command "+fields[0]+"\n")
+		}
+	}
+
+}
+
+//Starting the TCP connection
+func startTCP() {
+	listener, err := net.Listen("tcp", "localhost:8000")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer listener.Close()
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		handler(conn)
+
+	}
+
+}
+
 func main() {
 	// Placeholder data for testing
 	dta[1] = "David"
@@ -88,5 +168,6 @@ func main() {
 	http.HandleFunc("/get/", getData)
 	http.HandleFunc("/post/", post)
 	http.HandleFunc("/delete/", delete)
+	go startTCP()
 	http.ListenAndServe(":8080", nil)
 }
