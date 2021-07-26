@@ -13,33 +13,28 @@ import (
 
 var data = make(map[int]string)
 var postChannel = make(chan string)
-var intChannel = make(chan int)
-var setChannel = make(chan string)
+var setChannel = make(chan [2]string)
 var delChannel = make(chan int)
 
-func postData() {
+func channelHandler() {
 	for {
-		value := <-postChannel
-		data[len(data)+1] = value
+		select {
+		case val1 := <-postChannel:
+			data[len(data)+1] = val1
+			fmt.Println("Got here")
+		case val2 := <-setChannel:
+			key, err := strconv.Atoi(val2[0])
+			if err != nil {
+				log.Fatal("Fatal error")
+			}
+			data[key] = val2[1]
+			fmt.Println(val2)
+		case delKey := <-delChannel:
+			data[delKey] = ""
+		}
 	}
+
 }
-
-func setData() {
-
-	for {
-		key := <-intChannel
-		value := <-setChannel
-		data[key] = value
-	}
-}
-
-func delData() {
-	for {
-		key := <-delChannel
-		data[key] = ""
-	}
-}
-
 func handler(conn net.Conn) {
 
 	defer conn.Close()
@@ -77,11 +72,13 @@ func handler(conn net.Conn) {
 			if len(fields) < 3 {
 				io.WriteString(conn, "Format should be <int Key> <string Value> \n")
 			}
+			var chanSlice [2]string
 			var value string
 			keyInt, err := strconv.Atoi(fields[1])
 			if err != nil {
 				log.Fatal("Fatal error")
 			}
+			chanSlice[0] = fields[1]
 			fieldArr := strings.Split(fields[2], "_")
 			if len(fieldArr) > 1 {
 				value = strings.Join(fieldArr, " ")
@@ -90,9 +87,10 @@ func handler(conn net.Conn) {
 			}
 			if data[keyInt] != "" {
 				io.WriteString(conn, "Key is already in use. Try the LIST command to see keys in use \n")
+			} else {
+				chanSlice[1] = value
+				setChannel <- chanSlice
 			}
-			intChannel <- keyInt
-			setChannel <- value
 		case "DELETE":
 			keyInt, err := strconv.Atoi(fields[1])
 			if err != nil {
@@ -198,10 +196,8 @@ func main() {
 	data[1] = "Dan"
 	data[2] = "Sinead"
 
-	go postData()
-	go setData()
-	go delData()
 	go startTCP()
+	go channelHandler()
 
 	http.HandleFunc("/list", listData)
 	http.HandleFunc("/get/", getData)
