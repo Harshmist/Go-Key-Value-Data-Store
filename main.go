@@ -16,25 +16,8 @@ var postChannel = make(chan string)
 var setChannel = make(chan [2]string)
 var delChannel = make(chan int)
 
-func channelHandler() {
-	for {
-		select {
-		case val1 := <-postChannel:
-			data[len(data)+1] = val1
-			fmt.Println("Got here")
-		case val2 := <-setChannel:
-			key, err := strconv.Atoi(val2[0])
-			if err != nil {
-				log.Fatal("Fatal error")
-			}
-			data[key] = val2[1]
-			fmt.Println(val2)
-		case delKey := <-delChannel:
-			data[delKey] = ""
-		}
-	}
+// TCP Handler to take commands and send data to channels
 
-}
 func handler(conn net.Conn) {
 
 	defer conn.Close()
@@ -124,6 +107,8 @@ func startTCP() {
 
 }
 
+//HTTP HandleFuncs
+
 func listData(w http.ResponseWriter, r *http.Request) {
 
 	for i := 1; i < len(data)+1; i++ {
@@ -161,7 +146,9 @@ func post(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
 	// Allowing POST to take multiple words seperated by underscores "_"
+
 	var value string
 	valArr := strings.Split(parts[2], "_")
 	if len(valArr) > 1 {
@@ -197,8 +184,26 @@ func main() {
 	data[2] = "Sinead"
 
 	go startTCP()
-	go channelHandler()
 
+	//Receiving input via channels and manipulate the data map
+	go func() {
+		for {
+			select {
+			case val1 := <-postChannel:
+				data[len(data)+1] = val1
+			case val2 := <-setChannel:
+				key, err := strconv.Atoi(val2[0])
+				if err != nil {
+					log.Fatal("Fatal error")
+				}
+				data[key] = val2[1]
+			case delKey := <-delChannel:
+				data[delKey] = ""
+			}
+		}
+	}()
+
+	//HTTP Handlers
 	http.HandleFunc("/list", listData)
 	http.HandleFunc("/get/", getData)
 	http.HandleFunc("/post/", post)
