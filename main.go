@@ -2,19 +2,36 @@ package main
 
 import (
 	"bufio"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
-var data = make(map[int]string)
-var postChannel = make(chan string)
-var setChannel = make(chan [2]string)
-var delChannel = make(chan int)
+var (
+	data        = make(map[int]string)
+	postChannel = make(chan string)
+	setChannel  = make(chan [2]string)
+	delChannel  = make(chan int)
+	logger      *log.Logger
+	startTime   time.Time
+	counts      = expvar.NewMap(("counters"))
+)
+
+func init() {
+	file, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logger = log.New(file, "", log.Ldate|log.Ltime|log.Lshortfile)
+
+}
 
 // TCP Handler to take commands and send data to channels
 
@@ -51,6 +68,8 @@ func handler(conn net.Conn) {
 					io.WriteString(conn, fmt.Sprint(i)+": "+data[i]+"\n")
 				}
 			}
+			logger.Println("full list of store requested")
+			counts.Add("Requests", 1)
 		case "SET":
 			if len(fields) < 3 {
 				io.WriteString(conn, "Format should be <int Key> <string Value> \n")
@@ -117,6 +136,8 @@ func listData(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, data[i]+"\n")
 		}
 	}
+	logger.Println("full request of data in store")
+	counts.Add("Requests", 1)
 
 }
 
@@ -136,6 +157,7 @@ func getData(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, data[key]+"\n")
+		counts.Add("Requests", 1)
 	}
 }
 
@@ -182,6 +204,8 @@ func main() {
 	//Placeholder data for testing
 	data[1] = "Dan"
 	data[2] = "Sinead"
+	counts.Add("List Size", int64(len(data)))
+	counts.Add("Requests", 0)
 
 	go startTCP()
 
@@ -191,14 +215,23 @@ func main() {
 			select {
 			case val1 := <-postChannel:
 				data[len(data)+1] = val1
+				logger.Printf("%v added to store at key %d\n", val1, len(data))
+				counts.Add("List Size", 1)
+				counts.Add("Requests", 1)
 			case val2 := <-setChannel:
 				key, err := strconv.Atoi(val2[0])
 				if err != nil {
 					log.Fatal("Fatal error")
 				}
 				data[key] = val2[1]
+				logger.Printf("%v added to store at key %d\n", val2[1], key)
+				counts.Add("List Size", 1)
+				counts.Add("Requests", 1)
 			case delKey := <-delChannel:
 				data[delKey] = ""
+				logger.Printf("key %d removed from store\n", delKey)
+				counts.Add("List Size", -1)
+				counts.Add("Requests", 1)
 			}
 		}
 	}()
@@ -208,6 +241,6 @@ func main() {
 	http.HandleFunc("/get/", getData)
 	http.HandleFunc("/post/", post)
 	http.HandleFunc("/delete/", delete)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8123", nil)
 
 }
